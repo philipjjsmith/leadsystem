@@ -168,7 +168,8 @@ def scan(city, niche, all_niches, florida_blitz, niches, max_results,
     print_lead_table(all_leads[:50], title=f"Top 50 Leads — Ranked by Warmth Score")
 
     # ── Save outputs ───────────────────────────────────────────────────────────
-    os.makedirs(output_dir, exist_ok=True)
+    os.makedirs(os.path.join(output_dir, "leads"),   exist_ok=True)
+    os.makedirs(os.path.join(output_dir, "reports"), exist_ok=True)
     json_path = save_leads_json(all_leads, os.path.join(output_dir, "leads", "latest.json"))
     csv_path = export_leads_csv(all_leads, os.path.join(output_dir, "leads", "latest.csv"))
     console.print(f"\n  [green]✓[/green] JSON saved: {json_path}")
