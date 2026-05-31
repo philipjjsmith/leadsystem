@@ -24,8 +24,8 @@ jobs:
           import urllib.request, json, os, sys
 
           url   = os.environ["RENDER_URL"].rstrip("/") + "/scan/trigger"
-          city  = os.environ.get("SCAN_CITY",  "Dunedin, FL")
-          niche = os.environ.get("SCAN_NICHE", "pressure_washing")
+          city  = os.environ.get("SCAN_CITY",  "Tampa, FL")
+          niche = os.environ.get("SCAN_NICHE", "all")
           token = os.environ["SCAN_TOKEN"]
 
           payload = json.dumps({

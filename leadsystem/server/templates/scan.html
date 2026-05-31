@@ -31,6 +31,7 @@
       <div class="form-group">
         <label>Niche</label>
         <select id="scan-niche">
+          <option value="all">🔄 All Niches (full scan — runs overnight)</option>
           {% for key, val in niches.items() %}
           <option value="{{ key }}">{{ val[1] }} — {{ val[2] }} budget</option>
           {% endfor %}

@@ -126,6 +126,96 @@ async def _run_scan_task(city: str, niche: str, phone: str, no_website_only: boo
         _scan_state["done"]    = True
 
 
+async def _run_all_niches_task(city: str, phone: str, no_website_only: bool) -> None:
+    """
+    Run every niche in NICHES sequentially for one city.
+    Each niche is a separate subprocess so they stay isolated.
+    If one niche errors, we log it and continue — never abort the full run.
+    """
+    global _scan_state
+    niche_keys = list(NICHES.keys())
+    total      = len(niche_keys)
+
+    _scan_state = {
+        "running": True,
+        "lines":   [f"🚀 All-niches scan — {total} niches in {city}"],
+        "done":    False,
+        "error":   None,
+        "city":    city,
+        "niche":   "all",
+    }
+
+    errors: list = []
+
+    env = {
+        **os.environ,
+        "PYTHONUTF8": "1",
+        "NO_COLOR":   "1",
+        "TERM":       "dumb",
+    }
+
+    for idx, niche_key in enumerate(niche_keys, 1):
+        niche_display = NICHES[niche_key][1]
+        _scan_state["lines"].append("")
+        _scan_state["lines"].append(f"━━━ [{idx}/{total}] {niche_display} ━━━")
+
+        cmd = [
+            sys.executable,
+            os.path.join(PROJECT_ROOT, "main.py"),
+            "scan",
+            "--city",          city,
+            "--niche",         niche_key,
+            "--contact-phone", phone or "",
+            "--auto-import",
+        ]
+        if no_website_only:
+            cmd.append("--no-website-only")
+
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.STDOUT,
+                cwd=PROJECT_ROOT,
+                env=env,
+            )
+
+            async for raw_line in proc.stdout:
+                text = raw_line.decode("utf-8", errors="replace")
+                text = _strip_ansi(text)
+                if text:
+                    _scan_state["lines"].append(text)
+
+            await proc.wait()
+            rc = proc.returncode
+            if rc == 0:
+                _scan_state["lines"].append(f"✓ {niche_display} complete.")
+            else:
+                msg = f"⚠ {niche_display} exited with code {rc}."
+                _scan_state["lines"].append(msg)
+                errors.append(msg)
+
+        except Exception as exc:
+            msg = f"✗ {niche_display} error: {exc}"
+            _scan_state["lines"].append(msg)
+            errors.append(msg)
+
+    # Final summary line
+    _scan_state["lines"].append("")
+    if errors:
+        _scan_state["lines"].append(
+            f"⚠ Finished with {len(errors)} error(s) out of {total} niches."
+        )
+        _scan_state["error"] = f"{len(errors)} niches failed"
+    else:
+        _scan_state["lines"].append(
+            f"✓ All {total} niches complete — leads imported to CRM."
+        )
+
+    _scan_state["running"] = False
+    _scan_state["done"]    = True
+
+
 # ── Startup ────────────────────────────────────────────────────────────────────
 @app.on_event("startup")
 def startup():
@@ -339,9 +429,14 @@ async def scan_start(body: ScanStartRequest, background_tasks: BackgroundTasks):
     if not GOOGLE_PLACES_API_KEY:
         return {"status": "error", "message": "GOOGLE_PLACES_API_KEY not set."}
 
-    background_tasks.add_task(
-        _run_scan_task, body.city, body.niche, body.phone, body.no_website_only
-    )
+    if body.niche == "all":
+        background_tasks.add_task(
+            _run_all_niches_task, body.city, body.phone, body.no_website_only
+        )
+    else:
+        background_tasks.add_task(
+            _run_scan_task, body.city, body.niche, body.phone, body.no_website_only
+        )
     return {"status": "started", "city": body.city, "niche": body.niche}
 
 
@@ -392,7 +487,12 @@ async def scan_trigger(body: ScanTriggerRequest, background_tasks: BackgroundTas
     if not GOOGLE_PLACES_API_KEY:
         raise HTTPException(status_code=503, detail="GOOGLE_PLACES_API_KEY not configured.")
 
-    background_tasks.add_task(
-        _run_scan_task, body.city, body.niche, body.phone, body.no_website_only
-    )
+    if body.niche == "all":
+        background_tasks.add_task(
+            _run_all_niches_task, body.city, body.phone, body.no_website_only
+        )
+    else:
+        background_tasks.add_task(
+            _run_scan_task, body.city, body.niche, body.phone, body.no_website_only
+        )
     return {"status": "started", "city": body.city, "niche": body.niche}
