@@ -128,24 +128,34 @@ async def _run_scan_task(city: str, niche: str, phone: str, no_website_only: boo
 
 async def _run_all_niches_task(city: str, phone: str, no_website_only: bool) -> None:
     """
-    Run every niche in NICHES sequentially for one city.
+    Run every niche in NICHES sequentially for one or more cities.
+    Pass multiple cities by separating with | e.g. "Tampa, FL|Orlando, FL|Miami, FL".
     Each niche is a separate subprocess so they stay isolated.
     If one niche errors, we log it and continue — never abort the full run.
     """
     global _scan_state
-    niche_keys = list(NICHES.keys())
-    total      = len(niche_keys)
+    niche_keys  = list(NICHES.keys())
+    niche_count = len(niche_keys)
+    # Support pipe-separated multi-city: "Tampa, FL|Orlando, FL"
+    cities      = [c.strip() for c in city.split("|") if c.strip()]
+    city_count  = len(cities)
+    total_scans = city_count * niche_count
 
     _scan_state = {
         "running": True,
-        "lines":   [f"🚀 All-niches scan — {total} niches in {city}"],
+        "lines":   [
+            f"🚀 All-niches scan — {niche_count} niches × {city_count} cit{'y' if city_count == 1 else 'ies'} "
+            f"= {total_scans} total scans",
+            f"Cities: {', '.join(cities)}",
+        ],
         "done":    False,
         "error":   None,
-        "city":    city,
+        "city":    cities[0] if cities else city,
         "niche":   "all",
     }
 
     errors: list = []
+    scan_num    = 0
 
     env = {
         **os.environ,
@@ -154,62 +164,72 @@ async def _run_all_niches_task(city: str, phone: str, no_website_only: bool) -> 
         "TERM":       "dumb",
     }
 
-    for idx, niche_key in enumerate(niche_keys, 1):
-        niche_display = NICHES[niche_key][1]
+    for city_name in cities:
         _scan_state["lines"].append("")
-        _scan_state["lines"].append(f"━━━ [{idx}/{total}] {niche_display} ━━━")
+        _scan_state["lines"].append(f"{'═' * 50}")
+        _scan_state["lines"].append(f"📍 City: {city_name}")
+        _scan_state["lines"].append(f"{'═' * 50}")
+        _scan_state["city"] = city_name
 
-        cmd = [
-            sys.executable,
-            os.path.join(PROJECT_ROOT, "main.py"),
-            "scan",
-            "--city",          city,
-            "--niche",         niche_key,
-            "--contact-phone", phone or "",
-            "--auto-import",
-        ]
-        if no_website_only:
-            cmd.append("--no-website-only")
-
-        try:
-            proc = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.STDOUT,
-                cwd=PROJECT_ROOT,
-                env=env,
+        for idx, niche_key in enumerate(niche_keys, 1):
+            scan_num     += 1
+            niche_display = NICHES[niche_key][1]
+            _scan_state["lines"].append("")
+            _scan_state["lines"].append(
+                f"━━━ [{scan_num}/{total_scans}] {niche_display} — {city_name} ━━━"
             )
 
-            async for raw_line in proc.stdout:
-                text = raw_line.decode("utf-8", errors="replace")
-                text = _strip_ansi(text)
-                if text:
-                    _scan_state["lines"].append(text)
+            cmd = [
+                sys.executable,
+                os.path.join(PROJECT_ROOT, "main.py"),
+                "scan",
+                "--city",          city_name,
+                "--niche",         niche_key,
+                "--contact-phone", phone or "",
+                "--auto-import",
+            ]
+            if no_website_only:
+                cmd.append("--no-website-only")
 
-            await proc.wait()
-            rc = proc.returncode
-            if rc == 0:
-                _scan_state["lines"].append(f"✓ {niche_display} complete.")
-            else:
-                msg = f"⚠ {niche_display} exited with code {rc}."
+            try:
+                proc = await asyncio.create_subprocess_exec(
+                    *cmd,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.STDOUT,
+                    cwd=PROJECT_ROOT,
+                    env=env,
+                )
+
+                async for raw_line in proc.stdout:
+                    text = raw_line.decode("utf-8", errors="replace")
+                    text = _strip_ansi(text)
+                    if text:
+                        _scan_state["lines"].append(text)
+
+                await proc.wait()
+                rc = proc.returncode
+                if rc == 0:
+                    _scan_state["lines"].append(f"✓ {niche_display} complete.")
+                else:
+                    msg = f"⚠ {niche_display} exited with code {rc}."
+                    _scan_state["lines"].append(msg)
+                    errors.append(msg)
+
+            except Exception as exc:
+                msg = f"✗ {niche_display} error: {exc}"
                 _scan_state["lines"].append(msg)
                 errors.append(msg)
-
-        except Exception as exc:
-            msg = f"✗ {niche_display} error: {exc}"
-            _scan_state["lines"].append(msg)
-            errors.append(msg)
 
     # Final summary line
     _scan_state["lines"].append("")
     if errors:
         _scan_state["lines"].append(
-            f"⚠ Finished with {len(errors)} error(s) out of {total} niches."
+            f"⚠ Finished with {len(errors)} error(s) out of {total_scans} scans."
         )
-        _scan_state["error"] = f"{len(errors)} niches failed"
+        _scan_state["error"] = f"{len(errors)} scans failed"
     else:
         _scan_state["lines"].append(
-            f"✓ All {total} niches complete — leads imported to CRM."
+            f"✓ All {total_scans} scans complete — leads imported to CRM."
         )
 
     _scan_state["running"] = False
