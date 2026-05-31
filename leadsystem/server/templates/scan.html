@@ -1,0 +1,203 @@
+{% extends "base.html" %}
+{% block title %}Run Scan — LeadSystem{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Run Scan</h1>
+</div>
+
+{% if not google_api_key %}
+<div class="alert alert-overdue" style="margin-bottom:1.25rem">
+  <strong>⚠ No Google API Key</strong> — set <code>GOOGLE_PLACES_API_KEY</code> in your environment variables on Render before scanning.
+</div>
+{% endif %}
+
+<div class="lead-detail-grid">
+
+  <!-- Left: settings form -->
+  <div>
+    <div class="card">
+      <div class="card-title">Scan Settings</div>
+
+      <div class="form-group">
+        <label>City</label>
+        <select id="scan-city">
+          {% for city in cities %}
+          <option value="{{ city }}">{{ city }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>Niche</label>
+        <select id="scan-niche">
+          {% for key, val in niches.items() %}
+          <option value="{{ key }}">{{ val[1] }} — {{ val[2] }} budget</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>Your Phone Number (used in audit reports)</label>
+        <input type="tel" id="scan-phone" placeholder="727-555-0100">
+      </div>
+
+      <label class="filter-toggle" style="margin-bottom:1.25rem; display:inline-flex">
+        <input type="checkbox" id="scan-no-website">
+        No-website leads only
+      </label>
+
+      <button class="btn btn-primary w-full" id="start-btn"
+              {% if not google_api_key %}disabled title="Set API key first"{% endif %}
+              onclick="startScan()">
+        ▶ Start Scan
+      </button>
+    </div>
+
+    <div class="card" style="background:#0f172a; border-color:#1e293b">
+      <div class="card-title" style="color:#475569">How it works</div>
+      <div style="color:#64748b; font-size:0.82rem; line-height:1.7">
+        <div style="margin-bottom:0.5rem">1. Pick a city + niche and click <strong style="color:#94a3b8">Start Scan</strong></div>
+        <div style="margin-bottom:0.5rem">2. Watch live output as businesses are found, audited, and scored</div>
+        <div style="margin-bottom:0.5rem">3. Leads auto-import to your CRM when the scan finishes</div>
+        <div>4. Click <strong style="color:#94a3b8">View New Leads</strong> to see them in the pipeline</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: live output -->
+  <div>
+    <div class="card">
+      <div class="card-title" style="display:flex; justify-content:space-between; align-items:center">
+        <span>Live Output</span>
+        <span id="scan-status-badge" style="display:none"
+              class="scan-status-badge scan-status-running">● Running</span>
+      </div>
+
+      <div id="scan-log" class="scan-log">
+        <div class="scan-log-empty">Output appears here when a scan is running.</div>
+      </div>
+
+      <div id="scan-done-actions" style="display:none; margin-top:1rem">
+        <a href="/pipeline" class="btn btn-primary w-full">View New Leads →</a>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+var evtSource = null;
+
+window.addEventListener('DOMContentLoaded', function() {
+  // Restore saved phone from previous session
+  var saved = localStorage.getItem('leadsystem_phone');
+  if (saved) document.getElementById('scan-phone').value = saved;
+
+  {% if scan_running %}
+  // A scan is already in progress — re-connect to the live stream
+  var btn   = document.getElementById('start-btn');
+  var badge = document.getElementById('scan-status-badge');
+  btn.disabled = true;
+  btn.textContent = '⏳ Scanning…';
+  badge.style.display = 'inline-block';
+  badge.className = 'scan-status-badge scan-status-running';
+  badge.textContent = '● Running';
+  connectStream();
+  {% endif %}
+});
+
+function startScan() {
+  var city    = document.getElementById('scan-city').value;
+  var niche   = document.getElementById('scan-niche').value;
+  var phone   = document.getElementById('scan-phone').value.trim();
+  localStorage.setItem('leadsystem_phone', phone);
+  var noWeb   = document.getElementById('scan-no-website').checked;
+  var btn     = document.getElementById('start-btn');
+  var log     = document.getElementById('scan-log');
+  var badge   = document.getElementById('scan-status-badge');
+  var done    = document.getElementById('scan-done-actions');
+
+  log.innerHTML = '';
+  done.style.display = 'none';
+  btn.disabled = true;
+  btn.textContent = '⏳ Starting…';
+  badge.style.display = 'inline-block';
+  badge.className = 'scan-status-badge scan-status-running';
+  badge.textContent = '● Running';
+
+  fetch('/scan/start', {
+    method:  'POST',
+    headers: {'Content-Type': 'application/json'},
+    body:    JSON.stringify({city: city, niche: niche, phone: phone, no_website_only: noWeb}),
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.status === 'started') {
+      btn.textContent = '⏳ Scanning…';
+      connectStream();
+    } else if (data.status === 'busy') {
+      badge.className = 'scan-status-badge scan-status-busy';
+      badge.textContent = '⏳ Busy';
+      appendLine('A scan is already running — wait for it to finish.');
+      btn.disabled = false;
+      btn.textContent = '▶ Start Scan';
+    } else {
+      appendLine('Error: ' + (data.message || 'unknown error'));
+      btn.disabled = false;
+      btn.textContent = '▶ Start Scan';
+      badge.style.display = 'none';
+    }
+  })
+  .catch(function(err) {
+    appendLine('Failed to start scan: ' + err);
+    btn.disabled = false;
+    btn.textContent = '▶ Start Scan';
+    badge.style.display = 'none';
+  });
+}
+
+function connectStream() {
+  if (evtSource) { evtSource.close(); }
+  var log  = document.getElementById('scan-log');
+  var btn  = document.getElementById('start-btn');
+  var badge = document.getElementById('scan-status-badge');
+  var done = document.getElementById('scan-done-actions');
+
+  evtSource = new EventSource('/scan/stream');
+
+  evtSource.onmessage = function(e) {
+    if (e.data === '[DONE]') {
+      evtSource.close();
+      btn.disabled = false;
+      btn.textContent = '▶ Start Scan';
+      badge.className = 'scan-status-badge scan-status-done';
+      badge.textContent = '✓ Done';
+      done.style.display = 'block';
+      return;
+    }
+    appendLine(e.data);
+  };
+
+  evtSource.onerror = function() {
+    evtSource.close();
+    btn.disabled = false;
+    btn.textContent = '▶ Start Scan';
+    badge.className = 'scan-status-badge scan-status-error';
+    badge.textContent = '✗ Disconnected';
+  };
+}
+
+function appendLine(text) {
+  var log = document.getElementById('scan-log');
+  // Remove placeholder if present
+  var placeholder = log.querySelector('.scan-log-empty');
+  if (placeholder) { placeholder.remove(); }
+  var div = document.createElement('div');
+  div.className = 'scan-line';
+  div.textContent = text;
+  log.appendChild(div);
+  log.scrollTop = log.scrollHeight;
+}
+</script>
+{% endblock %}

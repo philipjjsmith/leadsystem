@@ -1,0 +1,4 @@
+# Root-level requirements — used by Northflank's Python buildpack.
+# References the inner package requirements + adds psycopg2 for Supabase.
+-r leadsystem/requirements.txt
+psycopg2-binary>=2.9.0

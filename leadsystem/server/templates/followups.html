@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Follow-ups — LeadSystem CRM{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Follow-ups</h1>
+</div>
+
+{% if not overdue and not due_today and not upcoming %}
+<div class="card" style="text-align:center; color:#94a3b8; padding:3rem">
+  <div style="font-size:2rem; margin-bottom:0.5rem">📅</div>
+  <div>No follow-ups scheduled yet.</div>
+  <div class="text-sm" style="margin-top:0.5rem">
+    Open a lead and set a follow-up date to see it here.
+  </div>
+</div>
+{% endif %}
+
+{% if overdue %}
+<div class="section-header" style="color:#ef4444">🚨 Overdue ({{ overdue|length }})</div>
+{% for lead in overdue %}
+<div class="alert alert-overdue">
+  <div>
+    <strong>#{{ lead.id }}</strong>
+    <a href="/leads/{{ lead.id }}">{{ lead.name }}</a>
+  </div>
+  <div class="text-sm" style="margin-left:auto; text-align:right">
+    <div>{{ lead.phone or "—" }}</div>
+    <div>Due: {{ lead.follow_up_date }}</div>
+  </div>
+</div>
+{% endfor %}
+{% endif %}
+
+{% if due_today %}
+<div class="section-header" style="color:#d97706; margin-top:1.25rem">📅 Due Today ({{ due_today|length }})</div>
+{% for lead in due_today %}
+<div class="alert alert-today">
+  <div>
+    <strong>#{{ lead.id }}</strong>
+    <a href="/leads/{{ lead.id }}">{{ lead.name }}</a>
+    <span class="badge badge-{{ lead.status }}" style="margin-left:0.5rem">
+      {{ STATUS_CONFIG[lead.status].emoji }} {{ STATUS_CONFIG[lead.status].label }}
+    </span>
+  </div>
+  <div class="text-sm" style="margin-left:auto">{{ lead.phone or "—" }}</div>
+</div>
+{% endfor %}
+{% endif %}
+
+{% if upcoming %}
+<div class="section-header" style="color:#16a34a; margin-top:1.25rem">📆 Upcoming ({{ upcoming|length }})</div>
+{% for lead in upcoming %}
+<div class="alert alert-upcoming">
+  <div>
+    <strong>#{{ lead.id }}</strong>
+    <a href="/leads/{{ lead.id }}">{{ lead.name }}</a>
+    <span class="badge badge-{{ lead.status }}" style="margin-left:0.5rem">
+      {{ STATUS_CONFIG[lead.status].emoji }} {{ STATUS_CONFIG[lead.status].label }}
+    </span>
+  </div>
+  <div class="text-sm" style="margin-left:auto; text-align:right">
+    <div>{{ lead.phone or "—" }}</div>
+    <div>{{ lead.follow_up_date }}</div>
+  </div>
+</div>
+{% endfor %}
+{% endif %}
+
+{% endblock %}

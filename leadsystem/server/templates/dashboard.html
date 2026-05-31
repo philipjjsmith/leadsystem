@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — LeadSystem CRM{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Dashboard</h1>
+  <a href="/pipeline" class="btn btn-secondary btn-sm">View Full Pipeline →</a>
+</div>
+
+<!-- Pipeline status counts -->
+<div class="stat-grid">
+  {% for status in STATUS_ORDER %}
+  {% set cfg = STATUS_CONFIG[status] %}
+  {% set count = stats.by_status.get(status, 0) %}
+  <a href="/pipeline?status={{ status }}" style="text-decoration:none">
+    <div class="stat-card" style="border-top: 3px solid currentColor"
+         class="status-{{ status }}">
+      <div class="val">{{ count }}</div>
+      <div class="lbl">{{ cfg.emoji }} {{ cfg.label }}</div>
+    </div>
+  </a>
+  {% endfor %}
+</div>
+
+<!-- Revenue summary -->
+<div class="stat-grid" style="grid-template-columns: repeat(4, 1fr); margin-bottom:1.5rem">
+  <div class="stat-card">
+    <div class="val" style="color:#16a34a">${{ "%.0f"|format(stats.closed_total) }}</div>
+    <div class="lbl">Revenue Closed</div>
+  </div>
+  <div class="stat-card">
+    <div class="val" style="color:#d97706">${{ "%.0f"|format(stats.pipeline_total) }}</div>
+    <div class="lbl">In Pipeline</div>
+  </div>
+  <div class="stat-card">
+    <div class="val">{{ stats.close_rate }}%</div>
+    <div class="lbl">Close Rate</div>
+  </div>
+  <div class="stat-card">
+    <div class="val">${{ "%.0f"|format(stats.avg_deal) }}</div>
+    <div class="lbl">Avg Deal Size</div>
+  </div>
+</div>
+
+<!-- Overdue follow-ups -->
+{% if overdue %}
+<div class="section-header" style="color:#ef4444">🚨 Overdue Follow-ups ({{ overdue|length }})</div>
+{% for lead in overdue %}
+{% set days = (today|string).__class__.fromisoformat(today).__class__.today().__class__.fromisoformat(today) %}
+<div class="alert alert-overdue">
+  <strong>#{{ lead.id }}</strong>
+  <a href="/leads/{{ lead.id }}">{{ lead.name }}</a>
+  <span class="text-muted text-sm">{{ lead.phone }}</span>
+  <span style="margin-left:auto; font-size:0.8rem">Due: {{ lead.follow_up_date }}</span>
+</div>
+{% endfor %}
+{% endif %}
+
+<!-- Due today -->
+{% if due_today %}
+<div class="section-header" style="color:#d97706; margin-top:1rem">📅 Due Today ({{ due_today|length }})</div>
+{% for lead in due_today %}
+<div class="alert alert-today">
+  <strong>#{{ lead.id }}</strong>
+  <a href="/leads/{{ lead.id }}">{{ lead.name }}</a>
+  <span class="text-muted text-sm">{{ lead.phone }}</span>
+</div>
+{% endfor %}
+{% endif %}
+
+<!-- Top leads -->
+<div class="section-header" style="margin-top:1.5rem">Top Leads by Score</div>
+<table class="lead-table">
+  <thead>
+    <tr>
+      <th>Tier</th>
+      <th>Score</th>
+      <th>Business</th>
+      <th>Phone</th>
+      <th>Status</th>
+      <th>Follow-up</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for lead in top_leads %}
+    {% set scfg = STATUS_CONFIG.get(lead.status, STATUS_CONFIG['new']) %}
+    {% set score = lead.warmth_score %}
+    <tr onclick="location.href='/leads/{{ lead.id }}'">
+      <td class="tier-{{ lead.tier }}">{{ TIER_CONFIG[lead.tier].emoji }}</td>
+      <td>
+        <span class="{% if score >= 75 %}score-red{% elif score >= 50 %}score-yellow{% else %}score-blue{% endif %}">
+          {{ score }}
+        </span>
+      </td>
+      <td><strong>{{ lead.name }}</strong><br><span class="text-muted text-sm">{{ lead.city }}</span></td>
+      <td>{{ lead.phone or "—" }}</td>
+      <td><span class="badge badge-{{ lead.status }}">{{ scfg.emoji }} {{ scfg.label }}</span></td>
+      <td class="text-sm {% if lead.follow_up_date and lead.follow_up_date < today %}score-red{% endif %}">
+        {{ lead.follow_up_date or "—" }}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{% if not top_leads %}
+<div class="card" style="text-align:center; color:#94a3b8; padding:3rem">
+  <div style="font-size:2rem; margin-bottom:0.5rem">📭</div>
+  <div>No leads in the CRM yet.</div>
+  <div class="text-sm" style="margin-top:0.5rem">
+    Run a scan in the terminal:<br>
+    <code>python main.py scan --city "Clearwater, FL" --niche hvac --auto-import</code>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

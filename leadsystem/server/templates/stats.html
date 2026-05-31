@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}Revenue — LeadSystem CRM{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Revenue & Stats</h1>
+</div>
+
+<!-- Top stat cards -->
+<div class="stat-grid" style="grid-template-columns: repeat(4, 1fr)">
+  <div class="stat-card">
+    <div class="val" style="color:#16a34a">${{ "%.2f"|format(stats.closed_total) }}</div>
+    <div class="lbl">Revenue Closed</div>
+  </div>
+  <div class="stat-card">
+    <div class="val" style="color:#d97706">${{ "%.2f"|format(stats.pipeline_total) }}</div>
+    <div class="lbl">In Pipeline</div>
+  </div>
+  <div class="stat-card">
+    <div class="val">{{ stats.close_rate }}%</div>
+    <div class="lbl">Close Rate</div>
+  </div>
+  <div class="stat-card">
+    <div class="val">${{ "%.0f"|format(stats.avg_deal) }}</div>
+    <div class="lbl">Avg Deal Size</div>
+  </div>
+</div>
+
+<div style="display:grid; grid-template-columns:1fr 1fr; gap:1.25rem">
+
+  <!-- Pipeline breakdown -->
+  <div class="card">
+    <div class="card-title">Pipeline Breakdown</div>
+    {% for status in STATUS_ORDER %}
+    {% set cfg   = STATUS_CONFIG[status] %}
+    {% set count = stats.by_status.get(status, 0) %}
+    {% set total = stats.total if stats.total > 0 else 1 %}
+    {% set pct   = (count / total * 100) | round(0) | int %}
+    <div style="margin-bottom:0.9rem">
+      <div style="display:flex; justify-content:space-between; margin-bottom:4px; font-size:0.85rem">
+        <span>
+          <span class="badge badge-{{ status }}">{{ cfg.emoji }} {{ cfg.label }}</span>
+        </span>
+        <span class="fw-bold">{{ count }}</span>
+      </div>
+      <div class="score-bar">
+        <div class="score-fill"
+             style="width:{{ pct }}%;
+                    background:{% if status=='closed' %}#16a34a{% elif status=='interested' %}#f59e0b{% elif status=='proposal' %}#8b5cf6{% elif status=='lost' %}#ef4444{% elif status=='called' %}#3b82f6{% else %}#94a3b8{% endif %}">
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Summary numbers -->
+  <div class="card">
+    <div class="card-title">Summary</div>
+    <table style="width:100%; border-collapse:collapse; font-size:0.875rem">
+      <tr style="border-bottom:1px solid #f1f5f9">
+        <td style="padding:0.6rem 0; color:#64748b">Total leads in CRM</td>
+        <td style="padding:0.6rem 0; text-align:right; font-weight:600">{{ stats.total }}</td>
+      </tr>
+      <tr style="border-bottom:1px solid #f1f5f9">
+        <td style="padding:0.6rem 0; color:#64748b">Leads contacted</td>
+        <td style="padding:0.6rem 0; text-align:right; font-weight:600">{{ stats.contacted }}</td>
+      </tr>
+      <tr style="border-bottom:1px solid #f1f5f9">
+        <td style="padding:0.6rem 0; color:#64748b">Deals closed</td>
+        <td style="padding:0.6rem 0; text-align:right; font-weight:600; color:#16a34a">{{ stats.closed_count }}</td>
+      </tr>
+      <tr style="border-bottom:1px solid #f1f5f9">
+        <td style="padding:0.6rem 0; color:#64748b">In pipeline (interested + proposal)</td>
+        <td style="padding:0.6rem 0; text-align:right; font-weight:600; color:#d97706">{{ stats.pipeline_count }}</td>
+      </tr>
+      <tr style="border-bottom:1px solid #f1f5f9">
+        <td style="padding:0.6rem 0; color:#64748b">Close rate</td>
+        <td style="padding:0.6rem 0; text-align:right; font-weight:600">{{ stats.close_rate }}%</td>
+      </tr>
+      <tr style="border-bottom:1px solid #f1f5f9">
+        <td style="padding:0.6rem 0; color:#64748b">Avg deal size</td>
+        <td style="padding:0.6rem 0; text-align:right; font-weight:600">${{ "%.0f"|format(stats.avg_deal) }}</td>
+      </tr>
+      <tr>
+        <td style="padding:0.6rem 0; color:#64748b">Total revenue closed</td>
+        <td style="padding:0.6rem 0; text-align:right; font-weight:700; color:#16a34a; font-size:1rem">
+          ${{ "%.2f"|format(stats.closed_total) }}
+        </td>
+      </tr>
+    </table>
+  </div>
+
+</div>
+
+{% if stats.total == 0 %}
+<div class="card" style="text-align:center; color:#94a3b8; padding:2rem; margin-top:1rem">
+  <div>No leads yet. Run a scan to start building your pipeline.</div>
+</div>
+{% endif %}
+
+{% endblock %}

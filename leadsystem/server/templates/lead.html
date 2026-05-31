@@ -1,0 +1,358 @@
+{% extends "base.html" %}
+{% block title %}{{ lead.name }} — LeadSystem CRM{% endblock %}
+
+{% block content %}
+
+<a href="/pipeline" class="back-link">← Back to Pipeline</a>
+
+{% if saved %}
+<div class="alert alert-success">✓ Saved successfully.</div>
+{% endif %}
+
+<!-- Lead header bar -->
+<div class="lead-header">
+  <div>
+    <h1>{{ lead.name }}</h1>
+    <div class="sub">{{ lead.address }}</div>
+    <div style="margin-top:0.6rem; display:flex; gap:0.5rem; flex-wrap:wrap; align-items:center">
+      <span class="badge badge-{{ lead.status }}">
+        {{ STATUS_CONFIG[lead.status].emoji }} {{ STATUS_CONFIG[lead.status].label }}
+      </span>
+      {% if lead.phone %}
+      <span class="text-muted text-sm">📞 {{ lead.phone }}</span>
+      {% endif %}
+      {% if lead.google_maps_url %}
+      <a href="{{ lead.google_maps_url }}" target="_blank"
+         style="color:#60a5fa; font-size:0.8rem">View on Google Maps ↗</a>
+      {% endif %}
+      {% if report_url %}
+      <a href="{{ report_url }}" target="_blank"
+         style="color:#60a5fa; font-size:0.8rem">View Audit Report ↗</a>
+      {% endif %}
+    </div>
+  </div>
+  <div class="lead-score-display">
+    <div class="score-num" style="color:{% if lead.warmth_score >= 75 %}#f87171{% elif lead.warmth_score >= 50 %}#fbbf24{% else %}#60a5fa{% endif %}">
+      {{ lead.warmth_score }}
+    </div>
+    <div class="score-label" style="color:#64748b">/100 warmth</div>
+    <div style="margin-top:4px" class="tier-{{ lead.tier }} text-sm">
+      {{ TIER_CONFIG[lead.tier].emoji }} Tier {{ lead.tier }}
+    </div>
+  </div>
+</div>
+
+<!-- Two-column layout -->
+<div class="lead-detail-grid">
+
+  <!-- Left column: info + audit -->
+  <div>
+
+    <!-- Business info -->
+    <div class="card">
+      <div class="card-title">Business Info</div>
+      <div class="info-grid">
+        <div class="info-item">
+          <span class="lbl">Google Rating</span>
+          <span class="val">{% if lead.rating %}{{ lead.rating }}★{% else %}No rating{% endif %}</span>
+        </div>
+        <div class="info-item">
+          <span class="lbl">Reviews</span>
+          <span class="val">{{ lead.review_count }} Google reviews</span>
+        </div>
+        <div class="info-item">
+          <span class="lbl">Website</span>
+          <span class="val">
+            {% if lead.website %}
+            <a href="{{ lead.website }}" target="_blank">{{ lead.website[:45] }}{% if lead.website|length > 45 %}…{% endif %}</a>
+            {% else %}
+            <span style="color:#ef4444; font-weight:600">✗ No website</span>
+            {% endif %}
+          </span>
+        </div>
+        <div class="info-item">
+          <span class="lbl">Status</span>
+          <span class="val">{{ lead.business_status }}</span>
+        </div>
+        <div class="info-item">
+          <span class="lbl">Niche</span>
+          <span class="val">{{ lead.niche_key | replace('_', ' ') | title }}</span>
+        </div>
+        <div class="info-item">
+          <span class="lbl">City</span>
+          <span class="val">{{ lead.city }}</span>
+        </div>
+        {% if lead.facebook_url %}
+        <div class="info-item">
+          <span class="lbl">Facebook</span>
+          <span class="val"><a href="{{ lead.facebook_url }}" target="_blank">View page ↗</a></span>
+        </div>
+        {% endif %}
+        {% if lead.instagram_url %}
+        <div class="info-item">
+          <span class="lbl">Instagram</span>
+          <span class="val"><a href="{{ lead.instagram_url }}" target="_blank">View profile ↗</a></span>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Website audit -->
+    {% if not lead.has_website %}
+    <div class="card">
+      <div class="card-title">⚠ No Website Found</div>
+      <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:1rem; color:#166534; font-size:0.875rem; line-height:1.5">
+        <strong>This business has no website.</strong> Every customer who searches for them
+        online hits a dead end. They are actively losing leads to competitors every single day.
+        {% if lead.review_count >= 20 %}
+        With {{ lead.review_count }} Google reviews and {{ lead.rating }}★, this is a real,
+        active business that customers trust — they just haven't been found by the right
+        web designer yet.
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    {% if website_issues %}
+    <div class="card">
+      <div class="card-title">Website Audit Issues</div>
+      {% if lead.website_score %}
+      {% set ws = lead.website_score if lead.website_score is mapping else {} %}
+      <div class="score-bars" style="margin-bottom:1rem">
+        {% for label, key in [('Mobile Performance','mobile_performance'),('Desktop Performance','desktop_performance'),('SEO Score','seo'),('Accessibility','accessibility')] %}
+        {% set val = ws.get(key, 0) if ws else 0 %}
+        <div class="score-row">
+          <div class="score-row-label">
+            <span>{{ label }}</span>
+            <span class="{% if val >= 75 %}score-green{% elif val >= 50 %}score-yellow{% else %}score-red{% endif %}">{{ val }}/100</span>
+          </div>
+          <div class="score-bar">
+            <div class="score-fill" style="width:{{ val }}%; background:{% if val >= 75 %}#16a34a{% elif val >= 50 %}#d97706{% else %}#dc2626{% endif %}"></div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+      <ul class="issue-list">
+        {% for issue in website_issues %}
+        <li>{{ issue }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+    <!-- Score breakdown -->
+    {% if score_breakdown %}
+    <div class="card">
+      <div class="card-title">Score Breakdown</div>
+      {% for reason, pts in score_breakdown.items() %}
+      <div class="breakdown-row">
+        <span style="color:#475569">{{ reason }}</span>
+        <span class="breakdown-pts">+{{ pts }} pts</span>
+      </div>
+      {% endfor %}
+      <div class="breakdown-row" style="border-top:2px solid #0f172a; margin-top:0.5rem; padding-top:0.5rem">
+        <strong>Total warmth score</strong>
+        <strong>{{ lead.warmth_score }}/100</strong>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Outreach Scripts -->
+    <div class="card">
+      <div class="card-title">Outreach Scripts</div>
+
+      <div class="script-tabs">
+        <button class="script-tab active" onclick="switchTab(this,'tab-phone')">&#128222; Phone</button>
+        <button class="script-tab"        onclick="switchTab(this,'tab-sms')">&#128172; SMS</button>
+        <button class="script-tab"        onclick="switchTab(this,'tab-email')">&#128231; Email</button>
+      </div>
+
+      <!-- Phone -->
+      <div id="tab-phone" class="script-panel">
+        <pre class="script-box" id="script-phone">{{ scripts.phone }}</pre>
+        <button class="btn btn-secondary btn-sm copy-btn" onclick="copyScript('script-phone',this)">Copy Script</button>
+      </div>
+
+      <!-- SMS -->
+      <div id="tab-sms" class="script-panel" style="display:none">
+        <pre class="script-box" id="script-sms">{{ scripts.sms }}</pre>
+        <button class="btn btn-secondary btn-sm copy-btn" onclick="copyScript('script-sms',this)">Copy Text</button>
+      </div>
+
+      <!-- Email -->
+      <div id="tab-email" class="script-panel" style="display:none">
+        <div style="margin-bottom:0.75rem">
+          <div class="text-sm text-muted" style="margin-bottom:4px">Subject Line</div>
+          <div class="script-subject" id="script-email-subject">{{ scripts.email_subject }}</div>
+          <button class="btn btn-secondary btn-sm copy-btn" onclick="copyScript('script-email-subject',this)" style="margin-top:0.4rem">Copy Subject</button>
+        </div>
+        <div class="text-sm text-muted" style="margin-bottom:4px">Body</div>
+        <pre class="script-box" id="script-email-body">{{ scripts.email_body }}</pre>
+        <button class="btn btn-secondary btn-sm copy-btn" onclick="copyScript('script-email-body',this)">Copy Body</button>
+      </div>
+    </div>
+
+    <!-- Contact history -->
+    <div class="card">
+      <div class="card-title">Contact History ({{ contact_log|length }})</div>
+      {% if contact_log %}
+      {% for entry in contact_log %}
+      {% set mcfg = METHOD_CONFIG.get(entry.method, {'emoji':'','label':entry.method}) %}
+      {% set ocfg = OUTCOME_CONFIG.get(entry.outcome, {'emoji':'','label':entry.outcome}) %}
+      <div class="log-entry">
+        <div class="log-date">{{ entry.logged_at[:10] }}</div>
+        <div class="log-main">
+          <span>{{ mcfg.emoji }} {{ mcfg.label }}</span>
+          <span style="color:#94a3b8">→</span>
+          <span>{{ ocfg.emoji }} {{ ocfg.label }}</span>
+        </div>
+        {% if entry.notes %}
+        <div class="log-notes">{{ entry.notes }}</div>
+        {% endif %}
+      </div>
+      {% endfor %}
+      {% else %}
+      <div class="text-muted text-sm">No contact attempts logged yet.</div>
+      {% endif %}
+    </div>
+
+  </div>
+
+  <!-- Right column: CRM actions -->
+  <div>
+
+    <!-- Current CRM state -->
+    <div class="card">
+      <div class="card-title">CRM State</div>
+      <div style="margin-bottom:0.75rem">
+        <div class="text-sm text-muted" style="margin-bottom:3px">Status</div>
+        <span class="badge badge-{{ lead.status }}" style="font-size:0.82rem">
+          {{ STATUS_CONFIG[lead.status].emoji }} {{ STATUS_CONFIG[lead.status].label }}
+        </span>
+      </div>
+      {% if lead.follow_up_date %}
+      <div style="margin-bottom:0.75rem">
+        <div class="text-sm text-muted" style="margin-bottom:3px">Follow-up</div>
+        <div class="text-sm {% if lead.follow_up_date < today %}score-red fw-bold{% elif lead.follow_up_date == today %}score-yellow fw-bold{% endif %}">
+          {% if lead.follow_up_date < today %}⚠ OVERDUE — {% elif lead.follow_up_date == today %}TODAY — {% endif %}
+          {{ lead.follow_up_date }}
+        </div>
+      </div>
+      {% endif %}
+      {% if lead.deal_value and lead.deal_value > 0 %}
+      <div style="margin-bottom:0.75rem">
+        <div class="text-sm text-muted" style="margin-bottom:3px">Deal Value</div>
+        <div class="score-green fw-bold">${{ "%.0f"|format(lead.deal_value) }}</div>
+      </div>
+      {% endif %}
+      {% if lead.notes %}
+      <div>
+        <div class="text-sm text-muted" style="margin-bottom:3px">Notes</div>
+        {% for line in lead.notes.split('\n') %}
+        {% if line.strip() %}
+        <div class="text-sm" style="padding:3px 0; border-bottom:1px solid #f8fafc">{{ line }}</div>
+        {% endif %}
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Update status form -->
+    <div class="card">
+      <div class="card-title">Update Lead</div>
+      <form method="post" action="/leads/{{ lead.id }}/update">
+        <div class="form-group">
+          <label>Status</label>
+          <select name="status">
+            {% for s in STATUS_ORDER %}
+            {% set cfg = STATUS_CONFIG[s] %}
+            <option value="{{ s }}" {% if lead.status == s %}selected{% endif %}>
+              {{ cfg.emoji }} {{ cfg.label }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Add Note</label>
+          <textarea name="note" placeholder="What happened? (timestamped automatically)"></textarea>
+        </div>
+        <div class="form-group">
+          <label>Follow-up Date</label>
+          <input type="date" name="follow_up_date"
+                 value="{{ lead.follow_up_date or '' }}">
+        </div>
+        <div class="form-group">
+          <label>Deal Value ($)</label>
+          <input type="number" name="deal_value" step="50" min="0"
+                 value="{{ lead.deal_value or '' }}"
+                 placeholder="e.g. 750">
+        </div>
+        <button type="submit" class="btn btn-primary w-full">Save Update</button>
+      </form>
+    </div>
+
+    <!-- Log contact form -->
+    <div class="card">
+      <div class="card-title">Log a Contact</div>
+      <form method="post" action="/leads/{{ lead.id }}/log">
+        <div class="form-row">
+          <div class="form-group">
+            <label>Method</label>
+            <select name="method">
+              {% for key, cfg in METHOD_CONFIG.items() %}
+              <option value="{{ key }}">{{ cfg.emoji }} {{ cfg.label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Outcome</label>
+            <select name="outcome">
+              {% for key, cfg in OUTCOME_CONFIG.items() %}
+              <option value="{{ key }}">{{ cfg.emoji }} {{ cfg.label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Notes (optional)</label>
+          <textarea name="notes" placeholder="What did they say?"></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary w-full">Log Contact</button>
+      </form>
+    </div>
+
+  </div>
+</div>
+
+<script>
+function switchTab(btn, panelId) {
+  btn.closest('.script-tabs').querySelectorAll('.script-tab').forEach(function(b) {
+    b.classList.remove('active');
+  });
+  btn.closest('.card').querySelectorAll('.script-panel').forEach(function(p) {
+    p.style.display = 'none';
+  });
+  btn.classList.add('active');
+  document.getElementById(panelId).style.display = 'block';
+}
+
+function copyScript(elemId, btn) {
+  var el  = document.getElementById(elemId);
+  var txt = el.innerText || el.textContent;
+  navigator.clipboard.writeText(txt).then(function() {
+    var orig = btn.textContent;
+    btn.textContent      = 'Copied!';
+    btn.style.background = '#dcfce7';
+    btn.style.color      = '#15803d';
+    btn.style.borderColor = '#bbf7d0';
+    setTimeout(function() {
+      btn.textContent      = orig;
+      btn.style.background = '';
+      btn.style.color      = '';
+      btn.style.borderColor = '';
+    }, 2000);
+  });
+}
+</script>
+{% endblock %}

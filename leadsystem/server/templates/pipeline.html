@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% block title %}Pipeline — LeadSystem CRM{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Pipeline <span class="text-muted text-sm">({{ total }} leads)</span></h1>
+</div>
+
+<!-- Filters -->
+<form method="get" action="/pipeline" class="filter-bar">
+  <select name="status" onchange="this.form.submit()">
+    <option value="">All Statuses</option>
+    {% for s in STATUS_ORDER %}
+    <option value="{{ s }}" {% if filter_status == s %}selected{% endif %}>
+      {{ STATUS_CONFIG[s].emoji }} {{ STATUS_CONFIG[s].label }}
+    </option>
+    {% endfor %}
+  </select>
+
+  <select name="tier" onchange="this.form.submit()">
+    <option value="">All Tiers</option>
+    {% for t in [1,2,3,4] %}
+    <option value="{{ t }}" {% if filter_tier == t|string %}selected{% endif %}>
+      {{ TIER_CONFIG[t].emoji }} Tier {{ t }}
+    </option>
+    {% endfor %}
+  </select>
+
+  <select name="niche" onchange="this.form.submit()">
+    <option value="">All Niches</option>
+    {% set niches = leads | map(attribute='niche_key') | unique | sort %}
+    {% for n in niches %}
+    <option value="{{ n }}" {% if filter_niche == n %}selected{% endif %}>
+      {{ n | replace('_', ' ') | title }}
+    </option>
+    {% endfor %}
+  </select>
+
+  <label class="filter-toggle">
+    <input type="checkbox" name="no_website" value="1" onchange="this.form.submit()"
+           {% if filter_no_website == "1" %}checked{% endif %}>
+    No Website Only
+  </label>
+
+  {% if filter_status or filter_tier or filter_niche or filter_no_website %}
+  <a href="/pipeline" class="btn btn-secondary btn-sm">✕ Clear</a>
+  {% endif %}
+</form>
+
+<!-- Lead table -->
+{% if leads %}
+<table class="lead-table">
+  <thead>
+    <tr>
+      <th style="width:40px">T</th>
+      <th style="width:55px">Score</th>
+      <th>Business</th>
+      <th style="width:140px">Phone</th>
+      <th style="width:130px">Status</th>
+      <th style="width:110px">Follow-up</th>
+      <th style="width:90px">Value</th>
+      <th>Notes</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for lead in leads %}
+    {% set scfg  = STATUS_CONFIG.get(lead.status, STATUS_CONFIG['new']) %}
+    {% set score = lead.warmth_score %}
+    {% set last_note = "" %}
+    {% if lead.notes %}
+      {% set lines = lead.notes.split('\n') %}
+      {% set last_note = lines[-1] %}
+    {% endif %}
+    <tr onclick="location.href='/leads/{{ lead.id }}'">
+      <td class="tier-{{ lead.tier }}">{{ TIER_CONFIG[lead.tier].emoji }}</td>
+      <td>
+        <span class="{% if score >= 75 %}score-red{% elif score >= 50 %}score-yellow{% else %}score-blue{% endif %}">
+          {{ score }}
+        </span>
+      </td>
+      <td>
+        <a href="/leads/{{ lead.id }}"><strong>{{ lead.name }}</strong></a>
+        {% if not lead.has_website %}<span class="no-web-badge">No Site</span>{% endif %}
+        <br><span class="text-muted text-sm">{{ lead.city | replace(', FL','') }}</span>
+      </td>
+      <td class="text-sm">{{ lead.phone or "—" }}</td>
+      <td>
+        <span class="badge badge-{{ lead.status }}">
+          {{ scfg.emoji }} {{ scfg.label }}
+        </span>
+      </td>
+      <td class="text-sm {% if lead.follow_up_date and lead.follow_up_date < today %}score-red fw-bold{% elif lead.follow_up_date == today %}score-yellow fw-bold{% endif %}">
+        {% if lead.follow_up_date %}
+          {% if lead.follow_up_date < today %}⚠ {{ lead.follow_up_date }}
+          {% elif lead.follow_up_date == today %}TODAY
+          {% else %}{{ lead.follow_up_date }}{% endif %}
+        {% else %}—{% endif %}
+      </td>
+      <td class="text-sm {% if lead.deal_value %}score-green{% endif %}">
+        {% if lead.deal_value and lead.deal_value > 0 %}${{ "%.0f"|format(lead.deal_value) }}{% else %}—{% endif %}
+      </td>
+      <td class="text-sm text-muted" style="max-width:180px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis">
+        {{ last_note }}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{% else %}
+<div class="card" style="text-align:center; color:#94a3b8; padding:3rem">
+  <div style="font-size:2rem; margin-bottom:0.5rem">🔍</div>
+  <div>No leads match the selected filters.</div>
+  <a href="/pipeline" class="btn btn-secondary btn-sm" style="margin-top:1rem">Clear filters</a>
+</div>
+{% endif %}
+{% endblock %}

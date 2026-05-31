@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: leadsystem
+    runtime: python
+    plan: free
+    region: oregon
+
+    # Install base deps + psycopg2 for PostgreSQL (Supabase)
+    buildCommand: "pip install -r leadsystem/requirements.txt && pip install psycopg2-binary"
+
+    # cd into the package dir so all relative imports work exactly as they do locally
+    startCommand: "cd leadsystem && python -m uvicorn server.app:app --host 0.0.0.0 --port $PORT --workers 1"
+
+    healthCheckPath: /health
+
+    envVars:
+      # Set these in the Render dashboard — never commit real values here
+      - key: DATABASE_URL
+        sync: false          # "sync: false" means Render asks you to fill it in
+      - key: GOOGLE_PLACES_API_KEY
+        sync: false
+      - key: PAGESPEED_API_KEY
+        sync: false
+      - key: SCAN_TOKEN
+        sync: false          # Random secret — GitHub Actions uses this to trigger scans
+      - key: DASHBOARD_PASSWORD
+        sync: false          # Optional: password-protect the web dashboard
+      - key: PYTHONUTF8
+        value: "1"
+      - key: NO_COLOR
+        value: "1"

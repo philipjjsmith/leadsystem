@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}LeadSystem CRM{% endblock %}</title>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<div class="shell">
+
+  <nav class="sidebar">
+    <div class="sidebar-brand">🎯 LeadSystem</div>
+    <a href="/scan"      class="nav-link {% if active == 'scan'      %}active{% endif %}">🔍 Run Scan</a>
+    <a href="/dashboard" class="nav-link {% if active == 'dashboard' %}active{% endif %}">📊 Dashboard</a>
+    <a href="/pipeline"  class="nav-link {% if active == 'pipeline'  %}active{% endif %}">📋 Pipeline</a>
+    <a href="/follow-ups"class="nav-link {% if active == 'followups' %}active{% endif %}">📅 Follow-ups</a>
+    <a href="/stats"     class="nav-link {% if active == 'stats'     %}active{% endif %}">💰 Revenue</a>
+  </nav>
+
+  <main class="main">
+    {% block content %}{% endblock %}
+  </main>
+
+</div>
+</body>
+</html>
