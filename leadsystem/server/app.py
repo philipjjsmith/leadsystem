@@ -243,7 +243,7 @@ def startup():
 
 
 # ── Health check (UptimeRobot ping target) ─────────────────────────────────────
-@app.get("/health")
+@app.api_route("/health", methods=["GET", "HEAD"])
 async def health():
     return {"status": "ok"}
 
