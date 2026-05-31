@@ -1,0 +1,66 @@
+name: Daily Lead Scan
+
+on:
+  schedule:
+    # 6:00 AM UTC = 2:00 AM ET.  Runs every night — fresh leads waiting each morning.
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+    # Also lets you click "Run workflow" manually from the GitHub Actions tab
+
+jobs:
+  trigger-scan:
+    name: Trigger scan on Render
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Send scan request
+        env:
+          RENDER_URL:  ${{ secrets.RENDER_URL }}
+          SCAN_TOKEN:  ${{ secrets.SCAN_TOKEN }}
+          SCAN_CITY:   ${{ vars.SCAN_CITY }}
+          SCAN_NICHE:  ${{ vars.SCAN_NICHE }}
+        run: |
+          python3 << 'EOF'
+          import urllib.request, json, os, sys
+
+          url   = os.environ["RENDER_URL"].rstrip("/") + "/scan/trigger"
+          city  = os.environ.get("SCAN_CITY",  "Dunedin, FL")
+          niche = os.environ.get("SCAN_NICHE", "pressure_washing")
+          token = os.environ["SCAN_TOKEN"]
+
+          payload = json.dumps({
+              "token": token,
+              "city":  city,
+              "niche": niche,
+          }).encode()
+
+          print(f"Triggering scan: {niche} in {city}")
+          print(f"Endpoint: {url}")
+
+          req = urllib.request.Request(
+              url,
+              data    = payload,
+              headers = {"Content-Type": "application/json"},
+              method  = "POST",
+          )
+
+          try:
+              with urllib.request.urlopen(req, timeout=30) as resp:
+                  result = json.loads(resp.read().decode())
+              print("Response:", result)
+              status = result.get("status", "")
+              if status == "started":
+                  print("Scan started successfully.")
+              elif status == "busy":
+                  print("Server is already running a scan — skipping.")
+              else:
+                  print(f"Unexpected status: {status}", file=sys.stderr)
+                  sys.exit(1)
+          except urllib.error.HTTPError as e:
+              body = e.read().decode()
+              print(f"HTTP {e.code}: {body}", file=sys.stderr)
+              sys.exit(1)
+          except Exception as e:
+              print(f"Request failed: {e}", file=sys.stderr)
+              sys.exit(1)
+          EOF
